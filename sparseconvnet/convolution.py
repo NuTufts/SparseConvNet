@@ -1,7 +1,7 @@
 # Copyright 2016-present, Facebook, Inc.
 # All rights reserved.
 #
-# This source code is licensed under the license found in the
+# This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
 import sparseconvnet, sparseconvnet.SCN
@@ -34,7 +34,7 @@ class Convolution(Module):
         output.spatial_size =\
             (input.spatial_size - self.filter_size) / self.filter_stride + 1
         assert ((output.spatial_size - 1) * self.filter_stride +
-                self.filter_size == input.spatial_size).all()
+                self.filter_size == input.spatial_size).all(), (input.spatial_size,output.spatial_size,self.filter_size,self.filter_stride)
         output.features = ConvolutionFunction.apply(
             input.features,
             self.weight,

@@ -1,7 +1,7 @@
 # Copyright 2016-present, Facebook, Inc.
 # All rights reserved.
 #
-# This source code is licensed under the license found in the
+# This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
 import sparseconvnet.SCN
@@ -41,7 +41,7 @@ class BatchNormalization(Module):
             self.bias = Parameter(torch.Tensor(nPlanes).fill_(0))
 
     def forward(self, input):
-        assert input.features.nelement() == 0 or input.features.size(1) == self.nPlanes
+        assert input.features.nelement() == 0 or input.features.size(1) == self.nPlanes, (self.nPlanes, input.features.shape)
         output = SparseConvNetTensor()
         output.metadata = input.metadata
         output.spatial_size = input.spatial_size

@@ -1,7 +1,7 @@
 # Copyright 2016-present, Facebook, Inc.
 # All rights reserved.
 #
-# This source code is licensed under the license found in the
+# This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
 forward_pass_multiplyAdd_count = 0
@@ -34,3 +34,4 @@ from .submanifoldConvolution import SubmanifoldConvolution, ValidConvolution
 from .tables import *
 from .unPooling import UnPooling
 from .utils import append_tensors, AddCoords, add_feature_planes, concatenate_feature_planes, compare_sparse
+from .shapeContext import ShapeContext, MultiscaleShapeContext

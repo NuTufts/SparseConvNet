@@ -1,7 +1,7 @@
 # Copyright 2016-present, Facebook, Inc.
 # All rights reserved.
 #
-# This source code is licensed under the license found in the
+# This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
 import torch, data
@@ -14,9 +14,9 @@ import os, sys
 import math
 import numpy as np
 
-data.init(-1,24,24*8+15,16)
+data.init(-1,24,24*8,16)
 dimension = 3
-reps = 2 #Conv block repetition factor
+reps = 1 #Conv block repetition factor
 m = 32 #Unet number of features
 nPlanes = [m, 2*m, 3*m, 4*m, 5*m] #UNet number of features per level
 
@@ -26,7 +26,7 @@ class Model(nn.Module):
         self.sparseModel = scn.Sequential().add(
            scn.InputLayer(dimension, data.spatialSize, mode=3)).add(
            scn.SubmanifoldConvolution(dimension, 1, m, 3, False)).add(
-           scn.UNet(dimension, reps, nPlanes, residual_blocks=False, downsample=[3,2])).add(
+           scn.UNet(dimension, reps, nPlanes, residual_blocks=False, downsample=[2,2])).add(
            scn.BatchNormReLU(m)).add(
            scn.OutputLayer(dimension))
         self.linear = nn.Linear(m, data.nClassesTotal)

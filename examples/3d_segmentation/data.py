@@ -1,12 +1,11 @@
 # Copyright 2016-present, Facebook, Inc.
 # All rights reserved.
 #
-# This source code is licensed under the license found in the
+# This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
 import numpy as np
-import torch
-import torchnet
+import torch, torch.utils.data
 import glob, math, os
 import scipy, scipy.ndimage
 import sparseconvnet as scn

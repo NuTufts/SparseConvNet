@@ -1,7 +1,7 @@
 // Copyright 2016-present, Facebook, Inc.
 // All rights reserved.
 //
-// This source code is licensed under the license found in the
+// This source code is licensed under the BSD-style license found in the
 // LICENSE file in the root directory of this source tree.
 
 #include "Metadata.h"
@@ -145,15 +145,13 @@ void Metadata<dimension>::setInputSpatialLocations(
 }
 
 template <Int dimension>
-void Metadata<dimension>::getSpatialLocations(/*long*/ at::Tensor spatialSize,
-                                              /*long*/ at::Tensor locations) {
+at::Tensor
+Metadata<dimension>::getSpatialLocations(/*long*/ at::Tensor spatialSize) {
   Int nActive = getNActive(spatialSize);
   auto &SGs = getSparseGrid(spatialSize);
   Int batchSize = SGs.size();
 
-  locations.resize_({(int)nActive, dimension + 1});
-  locations.zero_();
-
+  auto locations = torch::zeros({(int)nActive, dimension + 1}, at::kLong);
   auto lD = locations.data<long>();
 
   for (Int i = 0; i < batchSize; i++) {
@@ -166,6 +164,7 @@ void Metadata<dimension>::getSpatialLocations(/*long*/ at::Tensor spatialSize,
       lD[(it->second + offset) * (dimension + 1) + dimension] = i;
     }
   }
+  return locations;
 }
 template <Int dimension>
 void Metadata<dimension>::createMetadataForDenseToSparse(
@@ -255,12 +254,13 @@ void Metadata<dimension>::appendMetadata(Metadata<dimension> &mAdd,
 }
 
 template <Int dimension>
-at::Tensor
+std::vector<at::Tensor>
 Metadata<dimension>::sparsifyCompare(Metadata<dimension> &mReference,
                                      Metadata<dimension> &mSparsified,
                                      /*long*/ at::Tensor spatialSize) {
   auto p = LongTensorToPoint<dimension>(spatialSize);
-  at::Tensor delta = at::zeros({nActive[p]}, torch::CPU(at::kFloat));
+  at::Tensor delta = torch::zeros({nActive[p]}, at::kFloat);
+  at::Tensor ref_map = torch::empty({mReference.nActive[p]}, at::kLong);
   float *deltaPtr = delta.data<float>();
   auto &sgsReference = mReference.grids[p];
   auto &sgsFull = grids[p];
@@ -276,13 +276,16 @@ Metadata<dimension>::sparsifyCompare(Metadata<dimension> &mReference,
     for (auto const &iter : sgFull.mp) {
       bool gt = sgReference.mp.find(iter.first) != sgReference.mp.end();
       bool hot = sgSparsified.mp.find(iter.first) != sgSparsified.mp.end();
+      if (gt)
+        ref_map[sgReference.mp[iter.first] + sgReference.ctr] =
+            iter.second + sgFull.ctr;
       if (gt and not hot)
         deltaPtr[iter.second + sgFull.ctr] = -1;
       if (hot and not gt)
         deltaPtr[iter.second + sgFull.ctr] = +1;
     }
   }
-  return delta;
+  return {delta, ref_map};
 }
 
 // tensor is size[0] x .. x size[dimension-1] x size[dimension]
@@ -588,13 +591,13 @@ Metadata<dimension>::compareSparseHelper(Metadata<dimension> &mR,
       }
     }
   }
-  at::Tensor cL_ = at::empty({(long)cL.size()}, at::CPU(at::kLong));
+  at::Tensor cL_ = torch::empty({(long)cL.size()}, at::CPU(at::kLong));
   std::memcpy(cL_.data<long>(), &cL[0], cL.size() * sizeof(long));
-  at::Tensor cR_ = at::empty({(long)cR.size()}, at::CPU(at::kLong));
+  at::Tensor cR_ = torch::empty({(long)cR.size()}, at::CPU(at::kLong));
   std::memcpy(cR_.data<long>(), &cR[0], cR.size() * sizeof(long));
-  at::Tensor L_ = at::empty({(long)L.size()}, at::CPU(at::kLong));
+  at::Tensor L_ = torch::empty({(long)L.size()}, at::CPU(at::kLong));
   std::memcpy(L_.data<long>(), &L[0], L.size() * sizeof(long));
-  at::Tensor R_ = at::empty({(long)R.size()}, at::CPU(at::kLong));
+  at::Tensor R_ = torch::empty({(long)R.size()}, at::CPU(at::kLong));
   std::memcpy(R_.data<long>(), &R[0], R.size() * sizeof(long));
   return {cL_, cR_, L_, R_};
 }

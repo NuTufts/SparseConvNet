@@ -1,7 +1,7 @@
 # Copyright 2016-present, Facebook, Inc.
 # All rights reserved.
 #
-# This source code is licensed under the license found in the
+# This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
 # 'SubmanifoldConvolution == SubmanifoldConvolution'
@@ -29,7 +29,7 @@ class SubmanifoldConvolution(Module):
             self.bias = Parameter(torch.Tensor(nOut).zero_())
 
     def forward(self, input):
-        assert input.features.nelement() == 0 or input.features.size(1) == self.nIn
+        assert input.features.nelement() == 0 or input.features.size(1) == self.nIn, (self.nIn, self.nOut, input)
         output = SparseConvNetTensor()
         output.metadata = input.metadata
         output.spatial_size = input.spatial_size
