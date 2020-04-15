@@ -8,22 +8,23 @@
 scale=20  #Voxel size = 1/scale
 val_reps=1 # Number of test views, 1 or more
 batch_size=32
+elastic_deformation=False
 
-import torch, numpy as np, glob, math, torch.utils.data, scipy.ndimage, multiprocessing as mp
+import torch, numpy as np, glob, math, torch.utils.data, scipy.ndimage, multiprocessing as mp, time
 
 dimension=3
 full_scale=4096 #Input field size
 
-# VALID_CLAS_IDS have been mapped to the range {0,1,...,19}
-VALID_CLASS_IDS = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 24, 28, 33, 34, 36, 39])
+# Class IDs have been mapped to the range {0,1,...,19}
+# NYU_CLASS_IDS = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 24, 28, 33, 34, 36, 39])
 
 train,val=[],[]
 for x in torch.utils.data.DataLoader(
-      glob.glob('train/*.pth'),
+        glob.glob('train/*.pth'),
         collate_fn=lambda x: torch.load(x[0]), num_workers=mp.cpu_count()):
     train.append(x)
 for x in torch.utils.data.DataLoader(
-      glob.glob('val/*.pth'),
+        glob.glob('val/*.pth'),
         collate_fn=lambda x: torch.load(x[0]), num_workers=mp.cpu_count()):
     val.append(x)
 print('Training examples:', len(train))
@@ -60,8 +61,9 @@ def trainMerge(tbl):
         theta=np.random.rand()*2*math.pi
         m=np.matmul(m,[[math.cos(theta),math.sin(theta),0],[-math.sin(theta),math.cos(theta),0],[0,0,1]])
         a=np.matmul(a,m)
-        a=elastic(a,6*scale//50,40*scale/50)
-        a=elastic(a,20*scale//50,160*scale/50)
+        if elastic_deformation:
+            a=elastic(a,6*scale//50,40*scale/50)
+            a=elastic(a,20*scale//50,160*scale/50)
         m=a.min(0)
         M=a.max(0)
         q=M-m
@@ -80,8 +82,14 @@ def trainMerge(tbl):
     labels=torch.cat(labels,0)
     return {'x': [locs,feats], 'y': labels.long(), 'id': tbl}
 train_data_loader = torch.utils.data.DataLoader(
-    list(range(len(train))),batch_size=batch_size, collate_fn=trainMerge, num_workers=20, shuffle=True)
-
+    list(range(len(train))),
+    batch_size=batch_size,
+    collate_fn=trainMerge,
+    num_workers=20, 
+    shuffle=True,
+    drop_last=True,
+    worker_init_fn=lambda x: np.random.seed(x+int(time.time()))
+)
 
 valOffsets=[0]
 valLabels=[]
@@ -123,4 +131,10 @@ def valMerge(tbl):
     point_ids=torch.cat(point_ids,0)
     return {'x': [locs,feats], 'y': labels.long(), 'id': tbl, 'point_ids': point_ids}
 val_data_loader = torch.utils.data.DataLoader(
-    list(range(len(val))),batch_size=batch_size, collate_fn=valMerge, num_workers=20,shuffle=True)
+    list(range(len(val))),
+    batch_size=batch_size,
+    collate_fn=valMerge,
+    num_workers=20,
+    shuffle=True,
+    worker_init_fn=lambda x: np.random.seed(x+int(time.time()))
+)

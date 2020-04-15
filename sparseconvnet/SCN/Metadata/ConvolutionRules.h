@@ -15,20 +15,20 @@ void Convolution_InputSgToRulesAndOutputSg(SparseGrid<dimension> &inputGrid,
                                            long *stride, long *inputSpatialSize,
                                            long *outputSpatialSize) {
   rules.resize(volume<dimension>(size));
-
   for (auto const &inIter : inputGrid.mp) {
     auto outRegion = OutputRegionCalculator<dimension>(
         inIter.first, size, stride, outputSpatialSize);
     for (auto j : outRegion) {
       auto inRegion = InputRegionCalculator<dimension>(j, size, stride);
       Int rulesOffset = inRegion.offset(inIter.first);
-      auto outIter = outputGrid.mp.find(j);
-      if (outIter == outputGrid.mp.end()) {
-        outIter =
-            outputGrid.mp.insert(std::make_pair(j, outputGrid.ctr++)).first;
+      auto mapVal = outputGrid.mp.insert(std::make_pair(j, 0));
+
+      if (mapVal.second) {
+        mapVal.first->second = outputGrid.ctr++;
       }
+
       rules[rulesOffset].push_back(inIter.second + inputGrid.ctr);
-      rules[rulesOffset].push_back(outIter->second);
+      rules[rulesOffset].push_back(mapVal.first->second);
     }
   }
 }

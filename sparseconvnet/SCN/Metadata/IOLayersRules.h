@@ -7,7 +7,6 @@
 #ifndef INPUTLAYER_H
 #define INPUTLAYER_H
 
-
 // Rulebook Format
 // rules[0][0] == mode
 // rules[0][1] == maxActive per spatial location (==1 for modes 0,1,2)
@@ -18,8 +17,8 @@
 // mode 0==guaranteed unique 1==overwrite, 2=keep, 3=sum, 4=mean
 template <Int dimension>
 void inputLayerRules(SparseGrids<dimension> &SGs, RuleBook &rules, long *coords,
-                     Int nInputRows, Int nInputColumns, Int batchSize, Int mode,
-                     Int &nActive) {
+		     Int nInputRows, Int nInputColumns, Int batchSize, Int mode,
+		     Int &nActive) {
   assert(nActive == 0);
   assert(rules.size() == 0);
   assert(SGs.size() == 0);
@@ -38,21 +37,21 @@ void inputLayerRules(SparseGrids<dimension> &SGs, RuleBook &rules, long *coords,
       SGs.resize(1);
       auto &sg = SGs[0];
       for (Int i = 0; i < nInputRows; ++i) {
-        for (Int j = 0; j < dimension; j++)
-          p[j] = coords[j];
-        coords += dimension;
-        sg.mp[p] = i;
+	for (Int j = 0; j < dimension; j++)
+	  p[j] = coords[j];
+	coords += dimension;
+	sg.mp[p] = i;
       }
     } else { // nInputColumns == dimension + 1
       Int idx;
       for (Int i = 0; i < nInputRows; ++i) {
-        for (Int j = 0; j < dimension; j++)
-          p[j] = coords[j];
-        idx = coords[dimension];
-        coords += dimension + 1;
-        if (idx + 1 >= (Int)SGs.size())
-          SGs.resize(idx + 1);
-        SGs[idx].mp[p] = i;
+	for (Int j = 0; j < dimension; j++)
+	  p[j] = coords[j];
+	idx = coords[dimension];
+	coords += dimension + 1;
+	if (idx + 1 >= (Int)SGs.size())
+	  SGs.resize(idx + 1);
+	SGs[idx].mp[p] = i;
       }
     }
     return;
@@ -65,12 +64,10 @@ void inputLayerRules(SparseGrids<dimension> &SGs, RuleBook &rules, long *coords,
     auto &sg = SGs[0];
     for (Int i = 0; i < nInputRows; ++i) {
       for (Int j = 0; j < dimension; j++)
-        p[j] = coords[j];
+	p[j] = coords[j];
       coords += dimension;
-      auto iter = sg.mp.find(p);
-      if (iter == sg.mp.end()) {
-        sg.mp[p] = nActive++;
-        outputRows.resize(nActive);
+      if (sg.mp.insert(make_pair(p, nActive)).second) {
+	outputRows.resize(++nActive);
       }
       outputRows[sg.mp[p]].push_back(i);
     }
@@ -78,16 +75,14 @@ void inputLayerRules(SparseGrids<dimension> &SGs, RuleBook &rules, long *coords,
     Int idx;
     for (Int i = 0; i < nInputRows; ++i) {
       for (Int j = 0; j < dimension; j++)
-        p[j] = coords[j];
+	p[j] = coords[j];
       idx = coords[dimension];
       coords += dimension + 1;
       if (idx + 1 >= (Int)SGs.size())
-        SGs.resize(idx + 1);
+	SGs.resize(idx + 1);
       auto &sg = SGs[idx];
-      auto iter = sg.mp.find(p);
-      if (iter == sg.mp.end()) {
-        sg.mp[p] = nActive++;
-        outputRows.resize(nActive);
+      if (sg.mp.insert(make_pair(p, nActive)).second) {
+	outputRows.resize(++nActive);
       }
       outputRows[sg.mp[p]].push_back(i);
     }
@@ -118,9 +113,9 @@ void inputLayerRules(SparseGrids<dimension> &SGs, RuleBook &rules, long *coords,
     for (auto &row : outputRows) {
       rule.push_back(row.size());
       for (auto &r : row)
-        rule.push_back(r);
+	rule.push_back(r);
       rule.resize((rule.size() + maxActive) / (maxActive + 1) *
-                  (maxActive + 1));
+		  (maxActive + 1));
     }
   }
 }
@@ -138,7 +133,7 @@ void inputLayerRules(SparseGrids<dimension> &SGs, RuleBook &rules, long *coords,
 // 4=mean
 template <Int dimension>
 void blRules(SparseGrids<dimension> &SGs, RuleBook &rules, long *coords,
-             Int batchSize, Int length, Int mode, Int &nActive) {
+	     Int batchSize, Int length, Int mode, Int &nActive) {
   assert(nActive == 0);
   assert(rules.size() == 0);
   assert(SGs.size() == 0);
@@ -160,94 +155,133 @@ void blRules(SparseGrids<dimension> &SGs, RuleBook &rules, long *coords,
       auto c = coords + I * length * dimension;
       Point<dimension> p;
       for (Int l = 0; l < length; ++l) {
-        for (Int j = 0; j < dimension; ++j)
-          p[j] = c[j];
-        c += dimension;
-        sg.mp[p] = l;
+	for (Int j = 0; j < dimension; ++j)
+	  p[j] = c[j];
+	c += dimension;
+	sg.mp[p] = l;
       }
     }
     return;
   }
 
-  // Compile list of how input rows correspond to output rows
-  std::vector<std::vector<std::vector<Int>>> outputRows(batchSize);
-  std::vector<Int> nActives(batchSize);
+  if (mode <= 2) {
+    // Compile list of how input rows correspond to output rows
+    std::vector<std::vector<Int>> outputRows(batchSize);
+    std::vector<Int> nActives(batchSize);
 #pragma omp parallel for private(I)
-  for (I = 0; I < batchSize; I++) {
-    auto &sg = SGs[I];
-    auto &ors = outputRows[I];
-    auto &nAct = nActives[I];
-    auto c = coords + I * length * dimension;
-    Int i = I * length;
-    Point<dimension> p;
-    for (Int l = 0; l < length; ++l, ++i) {
-      for (Int j = 0; j < dimension; ++j)
-        p[j] = *c++;
-      if (p[0] >= 0) {
-        auto iter = sg.mp.find(p);
-        if (iter == sg.mp.end()) {
-          sg.mp[p] = nAct++;
-          ors.resize(nAct);
-        }
-        ors[sg.mp[p]].push_back(i);
+    for (I = 0; I < batchSize; I++) {
+      auto &sg = SGs[I];
+      auto &ors = outputRows[I];
+      auto &nAct = nActives[I];
+      auto c = coords + I * length * dimension;
+      Int i = I * length;
+      Point<dimension> p;
+
+      if (mode == 1) {
+	for (Int l = 0; l < length; ++l, ++i) {
+	  for (Int j = 0; j < dimension; ++j)
+	    p[j] = *c++;
+	  if (p[0] >= 0) {
+	    if (sg.mp.insert(make_pair(p, nAct)).second) {
+	      nAct++;
+	      ors.push_back(i);
+	    } else {
+	      ors[sg.mp[p]] = i;
+	    }
+	  }
+	}
+      }
+      if (mode == 2) {
+	for (Int l = 0; l < length; ++l, ++i) {
+	  for (Int j = 0; j < dimension; ++j)
+	    p[j] = *c++;
+	  if (p[0] >= 0) {
+	    if (sg.mp.insert(make_pair(p, nAct)).second) {
+	      nAct++;
+	      ors.push_back(i);
+	    }
+	  }
+	}
       }
     }
-  }
-
-  for (I = 0; I < batchSize; I++) {
-    SGs[I].ctr = nActive;
-    nActive += nActives[I];
-  }
-  Int maxActive = 1;
-  if (mode >= 3)
-    for (auto &ors : outputRows)
-      for (auto &row : ors)
-        maxActive = std::max(maxActive, (Int)row.size());
-
-  rules.resize(2);
-  rules[0].push_back(mode);
-  rules[0].push_back(maxActive);
-  rules[0].push_back(batchSize);
-  rules[0].push_back(length);
-  rules[0].push_back(nActive);
-  auto &rule = rules[1];
-  if (mode == 1) {
+    for (I = 0; I < batchSize; I++) {
+      SGs[I].ctr = nActive;
+      nActive += nActives[I];
+    }
+    Int maxActive = 1;
+    rules.resize(2);
+    rules[0].push_back(mode);
+    rules[0].push_back(maxActive);
+    rules[0].push_back(batchSize);
+    rules[0].push_back(length);
+    rules[0].push_back(nActive);
+    auto &rule = rules[1];
     rule.resize(2 * nActive);
 #pragma omp parallel for private(I)
     for (I = 0; I < batchSize; I++) {
       auto &ors = outputRows[I];
       auto rr = &rule[SGs[I].ctr * 2];
       for (auto &row : ors) {
-        rr[0] = row.size();
-        rr[1] = row.back();
-        rr += 2;
+	rr[0] = 1;
+	rr[1] = row;
+	rr += 2;
       }
     }
+    return;
   }
-  if (mode == 2) {
-    rule.resize(2 * nActive);
-#pragma omp parallel for private(I)
-    for (I = 0; I < batchSize; I++) {
-      auto &ors = outputRows[I];
-      auto rr = &rule[SGs[I].ctr * 2];
-      for (auto &row : ors) {
-        rr[0] = row.size();
-        rr[1] = row.front();
-        rr += 2;
-      }
-    }
-  }
+
   if (mode == 3 or mode == 4) {
+    // Compile list of how input rows correspond to output rows
+    std::vector<std::vector<std::vector<Int>>> outputRows(batchSize);
+    std::vector<Int> nActives(batchSize);
+#pragma omp parallel for private(I)
+    for (I = 0; I < batchSize; I++) {
+      auto &sg = SGs[I];
+      auto &ors = outputRows[I];
+      auto &nAct = nActives[I];
+      auto c = coords + I * length * dimension;
+      Int i = I * length;
+      Point<dimension> p;
+      for (Int l = 0; l < length; ++l, ++i) {
+	for (Int j = 0; j < dimension; ++j)
+	  p[j] = *c++;
+	if (p[0] >= 0) {
+	  if (sg.mp.insert(make_pair(p, nAct)).second) {
+	    nAct++;
+	    ors.resize(nAct);
+	  }
+	  ors[sg.mp[p]].push_back(i);
+	}
+      }
+    }
+
+    for (I = 0; I < batchSize; I++) {
+      SGs[I].ctr = nActive;
+      nActive += nActives[I];
+    }
+    Int maxActive = 1;
+    if (mode >= 3)
+      for (auto &ors : outputRows)
+	for (auto &row : ors)
+	  maxActive = std::max(maxActive, (Int)row.size());
+
+    rules.resize(2);
+    rules[0].push_back(mode);
+    rules[0].push_back(maxActive);
+    rules[0].push_back(batchSize);
+    rules[0].push_back(length);
+    rules[0].push_back(nActive);
+    auto &rule = rules[1];
     rule.resize((maxActive + 1) * nActive);
 #pragma omp parallel for private(I)
     for (I = 0; I < batchSize; I++) {
       auto &ors = outputRows[I];
       auto rr = &rule[SGs[I].ctr * (maxActive + 1)];
       for (auto &row : ors) {
-        rr[0] = row.size();
-        for (Int i = 0; i < (Int)row.size(); ++i)
-          rr[i + 1] = row[i];
-        rr += 1 + maxActive;
+	rr[0] = row.size();
+	for (Int i = 0; i < (Int)row.size(); ++i)
+	  rr[i + 1] = row[i];
+	rr += 1 + maxActive;
       }
     }
   }

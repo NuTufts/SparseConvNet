@@ -24,9 +24,9 @@ Higher dimensional input is more likely to be sparse because of the 'curse of di
 
   Dimension|Name in 'torch.nn'|Use cases
   :--:|:--:|:--:
-  1|TemporalConvolution| Text, audio
-  2|SpatialConvolution|Lines in 2D space, e.g. handwriting
-  3|VolumetricConvolution|Lines and surfaces in 3D space or (2+1)D space-time
+  1|Conv1d| Text, audio
+  2|Conv2d|Lines in 2D space, e.g. handwriting
+  3|Conv3d|Lines and surfaces in 3D space or (2+1)D space-time
   4| - |Lines, etc,  in (3+1)D space-time
 
 We use the term 'submanifold' to refer to input data that is sparse because it has a lower effective dimension than the space in which it lives, for example a one-dimensional curve in 2+ dimensional space, or a two-dimensional surface in 3+ dimensional space.
@@ -44,64 +44,57 @@ import torch
 import sparseconvnet as scn
 
 # Use the GPU if there is one, otherwise CPU
-use_gpu = torch.cuda.is_available()
+device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
 model = scn.Sequential().add(
     scn.SparseVggNet(2, 1,
-		     [['C',  8], ['C',  8], ['MP', 3, 2],
-		      ['C', 16], ['C', 16], ['MP', 3, 2],
-		      ['C', 24], ['C', 24], ['MP', 3, 2]])
+                     [['C', 8], ['C', 8], ['MP', 3, 2],
+                      ['C', 16], ['C', 16], ['MP', 3, 2],
+                      ['C', 24], ['C', 24], ['MP', 3, 2]])
 ).add(
     scn.SubmanifoldConvolution(2, 24, 32, 3, False)
 ).add(
     scn.BatchNormReLU(32)
 ).add(
-    scn.SparseToDense(2,32)
-)
-if use_gpu:
-    model.cuda()
+    scn.SparseToDense(2, 32)
+).to(device)
 
 # output will be 10x10
 inputSpatialSize = model.input_spatial_size(torch.LongTensor([10, 10]))
-input = scn.InputBatch(2, inputSpatialSize)
+input_layer = scn.InputLayer(2, inputSpatialSize)
 
-msg = [
-    " X   X  XXX  X    X    XX     X       X   XX   XXX   X    XXX   ",
-    " X   X  X    X    X   X  X    X       X  X  X  X  X  X    X  X  ",
-    " XXXXX  XX   X    X   X  X    X   X   X  X  X  XXX   X    X   X ",
-    " X   X  X    X    X   X  X     X X X X   X  X  X  X  X    X  X  ",
-    " X   X  XXX  XXX  XXX  XX       X   X     XX   X  X  XXX  XXX   "]
+msgs = [[" X   X  XXX  X    X    XX     X       X   XX   XXX   X    XXX   ",
+         " X   X  X    X    X   X  X    X       X  X  X  X  X  X    X  X  ",
+         " XXXXX  XX   X    X   X  X    X   X   X  X  X  XXX   X    X   X ",
+         " X   X  X    X    X   X  X     X X X X   X  X  X  X  X    X  X  ",
+         " X   X  XXX  XXX  XXX  XX       X   X     XX   X  X  XXX  XXX   "],
 
-#Add a sample using set_location
-input.add_sample()
-for y, line in enumerate(msg):
-    for x, c in enumerate(line):
-	if c == 'X':
-	    location = torch.LongTensor([x, y])
-	    featureVector = torch.FloatTensor([1])
-	    input.set_location(location, featureVector, 0)
+        [" XXX              XXXXX      x   x     x  xxxxx  xxx ",
+         " X  X  X   XXX       X       x   x x   x  x     x  x ",
+         " XXX                X        x   xxxx  x  xxxx   xxx ",
+         " X     X   XXX       X       x     x   x      x    x ",
+         " X     X          XXXX   x   x     x   x  xxxx     x ",]]
 
-#Add a sample using set_locations
-input.add_sample()
+
+# Create Nx3 and Nx1 vectors to encode the messages above:
 locations = []
 features = []
-for y, line in enumerate(msg):
-    for x, c in enumerate(line):
-	if c == 'X':
-	    locations.append([x,y])
-	    features.append([1])
+for batchIdx, msg in enumerate(msgs):
+    for y, line in enumerate(msg):
+        for x, c in enumerate(line):
+            if c == 'X':
+                locations.append([y, x, batchIdx])
+                features.append([1])
 locations = torch.LongTensor(locations)
-features = torch.FloatTensor(features)
-input.set_locations(locations, features, 0)
+features = torch.FloatTensor(features).to(device)
 
-model.train()
-if use_gpu:
-    input.cuda()
-output = model.forward(input)
+input = input_layer([locations,features])
+print('Input SparseConvNetTensor:', input)
+output = model(input)
 
 # Output is 2x32x10x10: our minibatch has 2 samples, the network has 32 output
 # feature planes, and 10x10 is the spatial size of the output.
-print(output.size(), output.type())
+print('Output SparseConvNetTensor:', output)
 ```
 
 
@@ -121,12 +114,10 @@ python VGGplus.py
 
 ## Setup
 
-Tested with Ubuntu 16.04, Python 3.6 in [Miniconda](https://conda.io/miniconda.html) and PyTorch 1.0.
+Tested with PyTorch 1.3, CUDA 10.0, and Python 3.3 with [Conda](https://www.anaconda.com/).
 
 ```
-conda install pytorch-nightly -c pytorch # See https://pytorch.org/get-started/locally/
-conda install google-sparsehash -c bioconda   # OR apt-get install libsparsehash-dev
-conda install -c anaconda pillow
+conda install pytorch torchvision cudatoolkit=10.0 -c pytorch # See https://pytorch.org/get-started/locally/
 git clone git@github.com:facebookresearch/SparseConvNet.git
 cd SparseConvNet/
 bash develop.sh
@@ -137,10 +128,10 @@ apt-get install unrar
 ```
 
 ## License
-SparseConvNet is Attribution-NonCommercial 4.0 International licensed, as found in the LICENSE file.
+SparseConvNet is BSD licensed, as found in the LICENSE file.
 
 ## Links
-1. [ICDAR 2013 Chinese Handwriting Recognition Competition 2013](http://www.nlpr.ia.ac.cn/events/CHRcompetition2013/competition/Home.html) First place in task 3, with test error of 2.61%. Human performance on the test set was 4.81%. [Report](http://www.nlpr.ia.ac.cn/events/CHRcompetition2013/competition/ICDAR%202013%20CHR%20competition.pdf)
+1. [ICDAR 2013 Chinese Handwriting Recognition Competition 2013](https://web.archive.org/web/20160418143451/http://www.nlpr.ia.ac.cn/events/CHRcompetition2013/competition/Home.html) First place in task 3, with test error of 2.61%. Human performance on the test set was 4.81%. [Report](https://web.archive.org/web/20160910012723/http://www.nlpr.ia.ac.cn/events/CHRcompetition2013/competition/ICDAR%202013%20CHR%20competition.pdf)
 2. [Spatially-sparse convolutional neural networks, 2014](http://arxiv.org/abs/1409.6070) SparseConvNets for Chinese handwriting recognition
 3. [Fractional max-pooling, 2014](http://arxiv.org/abs/1412.6071) A SparseConvNet with fractional max-pooling achieves an error rate of 3.47% for CIFAR-10.
 4. [Sparse 3D convolutional neural networks, BMVC 2015](http://arxiv.org/abs/1505.02890) SparseConvNets for 3D object recognition and (2+1)D video action recognition.
@@ -150,6 +141,8 @@ SparseConvNet is Attribution-NonCommercial 4.0 International licensed, as found 
 8. [Workshop on Learning to See from 3D Data, 2017](https://shapenet.cs.stanford.edu/iccv17workshop/) First place in the [semantic segmentation](https://shapenet.cs.stanford.edu/iccv17/) competition. [Report](https://arxiv.org/pdf/1710.06104)
 9. [3D Semantic Segmentation with Submanifold Sparse Convolutional Networks, 2017](https://arxiv.org/abs/1711.10275) Semantic segmentation for the ShapeNet Core55 and NYU-DepthV2 datasets, CVPR 2018
 10. [ScanNet 3D semantic label benchmark 2018](http://kaldir.vc.in.tum.de/scannet_benchmark/semantic_label_3d) 0.726 average IOU.
+11. [MinkowskiEngine](https://github.com/StanfordVL/MinkowskiEngine) is an alternative implementation of SparseConvNet.
+12. [OccuSeg](https://sites.google.com/view/lhanaf/) object detection using SparseConvNets
 
 ## Citations
 
