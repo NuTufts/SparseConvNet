@@ -15,4 +15,4 @@ export LD_LIBRARY_PATH=${CUDA_LIB}:${LD_LIBRARY_PATH}
 export TORCH_CUDA_ARCH_LIST="5.2;6.0;6.1;6.2;7.0;7.5;8.0+PTX"
 
 rm -rf build/ dist/ sparseconvnet.egg-info
-python3 setup.py install && python examples/hello-world.py
+python3 setup.py install && python3 examples/hello-world.py
