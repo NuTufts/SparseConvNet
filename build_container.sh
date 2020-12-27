@@ -12,6 +12,7 @@ CUDA_BIN=${CUDA_HOME}/bin
 CUDA_LIB=${CUDA_HOME}/lib64/stubs
 export PATH=${CUDA_BIN}:${PATH}
 export LD_LIBRARY_PATH=${CUDA_LIB}:${LD_LIBRARY_PATH}
+export TORCH_CUDA_ARCH_LIST="5.2;6.0;6.1;6.2;7.0;7.5;8.0+PTX"
 
 rm -rf build/ dist/ sparseconvnet.egg-info
 python setup.py install && python examples/hello-world.py
