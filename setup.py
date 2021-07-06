@@ -14,7 +14,7 @@ if torch.cuda.is_available():
 this_dir = os.path.dirname(os.path.realpath(__file__))
 torch_dir = os.path.dirname(torch.__file__)
 conda_include_dir = '/'.join(torch_dir.split('/')[:-4]) + '/include'
-extra = {'cxx': ['-std=c++14', '-fopenmp','-O3'], 'nvcc': ['-std=c++14', '-Xcompiler', '-fopenmp', '-O3']}
+extra = {'cxx': ['-std=c++14', '-fopenmp','-O3'], 'nvcc': ['-std=c++14', '-Xcompiler','-fopenmp', '-O3']}
 
 setup(
     name='sparseconvnet',
@@ -25,16 +25,16 @@ setup(
     url='https://github.com/facebookresearch/SparseConvNet',
     packages=['sparseconvnet','sparseconvnet.SCN'],
     ext_modules=[
-      CUDAExtension('sparseconvnet.SCN',
-        [
-         'sparseconvnet/SCN/cuda.cu', 'sparseconvnet/SCN/sparseconvnet_cuda.cpp', 'sparseconvnet/SCN/pybind.cpp'],
-        include_dirs=[conda_include_dir, this_dir+'/sparseconvnet/SCN/'],
-                    extra_compile_args=extra)],
-      #if torch.cuda.is_available()  else
-      #CppExtension('sparseconvnet.SCN',
-      #  ['sparseconvnet/SCN/pybind.cpp', 'sparseconvnet/SCN/sparseconvnet_cpu.cpp'],
-      #  include_dirs=[conda_include_dir, this_dir+'/sparseconvnet/SCN/'],
-      #  extra_compile_args=extra['cxx'])],
+        CUDAExtension('sparseconvnet.SCN',
+                      [
+                          'sparseconvnet/SCN/cuda.cu', 'sparseconvnet/SCN/sparseconvnet_cuda.cpp', 'sparseconvnet/SCN/pybind.cpp'],
+                      include_dirs=[conda_include_dir, this_dir+'/sparseconvnet/SCN/'],
+                      extra_compile_args=extra),
+        #if torch.cuda.is_available()  else
+        CppExtension('sparseconvnet.SCN',
+                     ['sparseconvnet/SCN/pybind.cpp', 'sparseconvnet/SCN/sparseconvnet_cpu.cpp'],
+                     include_dirs=[conda_include_dir, this_dir+'/sparseconvnet/SCN/'],
+                     extra_compile_args=extra['cxx'])],
     cmdclass={'build_ext': BuildExtension},
     zip_safe=False,
 )
