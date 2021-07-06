@@ -14,7 +14,7 @@ from torchvision.models import vgg as vgg
 
 # Use the GPU if there is one and sparseconvnet can use it, otherwise CPU
 use_cuda = torch.cuda.is_available() and scn.SCN.is_cuda_build()
-use_cuda = False
+#use_cuda = False
 device = 'cuda:0' if use_cuda else 'cpu'
 if use_cuda:
     print("Using CUDA.")
