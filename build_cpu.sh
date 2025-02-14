@@ -8,4 +8,4 @@
 
 # Set these to help find cuda
 rm -rf build/ dist/ sparseconvnet.egg-info
-python setup_cpu.py install && python examples/hello-world.py
+python3 setup_cpu.py install && python3 examples/hello-world.py
