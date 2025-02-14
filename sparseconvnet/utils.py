@@ -124,14 +124,15 @@ def batch_location_tensors(location_tensors):
             a.append(pad_with_batch_idx(lt,batch_idx))
     return torch.cat(a,0)
 
-def prepare_BLInput(l,f):
+def prepare_BLInput(batch):
     with torch.no_grad():
-        n=max([x.size(0) for x in l])
-        L=torch.empty(len(l),n,l[0].size(1),dtype=torch.int64).fill_(-1)
-        F=torch.zeros(len(l),n,f[0].size(1))
-        for i, (ll, ff) in enumerate(zip(l,f)):
-            L[i,:ll.size(0),:].copy_(ll)
-            F[i,:ff.size(0),:].copy_(ff)
+        n=max([l.size(0) for l,f in batch])
+        l,f=batch[0]
+        L=torch.empty(len(batch),n,l.size(1),dtype=torch.int64).fill_(-1)
+        F=torch.zeros(len(batch),n,f.size(1))
+        for i, (l, f) in enumerate(batch):
+            L[i,:l.size(0),:].copy_(l)
+            F[i,:f.size(0),:].copy_(f)
     return [L,F]
 
 def checkpoint_restore(model,exp_name,name2,use_cuda=True,epoch=0):
@@ -189,23 +190,28 @@ def squareroot_rotation(a):
         scipy.spatial.transform.Rotation.from_dcm(torch.stack([torch.eye(3),a])))([0.5]).as_dcm()
     return torch.from_numpy(b).float()[0]
 
-def voxelize_pointcloud(xyz,rgb,average=True,accumulate=False):
+def voxelize_pointcloud(xyz,rgb,average=True,accumulate=False,return_inverse=False,return_counts=False):
     if xyz.numel()==0:
         return xyz, rgb
     if average or accumulate:
-        xyz,inv,counts=np.unique(xyz.numpy(),axis=0,return_inverse=True,return_counts=True)
-        xyz=torch.from_numpy(xyz)
-        inv=torch.from_numpy(inv)
-        rgb_out=torch.zeros(xyz.size(0),rgb.size(1),dtype=torch.float32)
+        xyz,inv,counts=torch.unique(xyz,dim=0,return_inverse=True,return_counts=True)
+        rgb_out=torch.zeros(xyz.size(0),rgb.size(1),dtype=torch.float32,device=xyz.device)
         rgb_out.index_add_(0,inv,rgb)
         if average:
-            rgb=rgb_out/torch.from_numpy(counts[:,None]).float()
-        return xyz, rgb
+            rgb_out=rgb_out/counts[:,None].float()
+        rgb=rgb_out
     else:
-        xyz,idxs=np.unique(xyz,axis=0,return_index=True)
-        xyz=torch.from_numpy(xyz)
-        rgb=rgb[idxs]
-        return xyz, rgb
+        #https://github.com/pytorch/pytorch/issues/36748
+        xyz, inv = torch.unique(xyz, sorted=True, return_inverse=True, dim=0)
+        perm = torch.arange(inv.size(0), dtype=inv.dtype, device=inv.device)
+        inv, perm = inv.flip([0]), perm.flip([0])
+        rgb=rgb[inv.new_empty(xyz.size(0)).scatter_(0, inv, perm)]
+    r=[xyz,rgb_out]
+    if return_inverse:
+        r+=[inv]
+    if return_counts:
+        r+=[counts]
+    return r
 
 class checkpointFunction(torch.autograd.Function):
     @staticmethod
@@ -231,6 +237,7 @@ class checkpointFunction(torch.autograd.Function):
         return None, x_features.grad, None, None
 
 def checkpoint101(run_function, x, down=1):
+    x.features.requires_grad = True
     f=checkpointFunction.apply(run_function, x.features, x.metadata, x.spatial_size)
     s=x.spatial_size//down
     return SparseConvNetTensor(f, x.metadata, s)
